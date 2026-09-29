@@ -1,0 +1,12 @@
+services:
+  random-image:
+    image: php:apache
+    container_name: random-image
+    restart: always
+    ports:
+      - "8181:80"
+    user: 3000:3000   # 使用 xct258 的 UID:GID
+    volumes:
+      - ./var/www/html:/var/www/html
+      - /mnt/ssd-1/xct258/图片/网页背景图/pc:/home/xct258/images/pc
+      - /mnt/ssd-1/xct258/图片/网页背景图/pe:/home/xct258/images/pe

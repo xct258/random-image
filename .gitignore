@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite 运行时数据（删掉重启即重建）
+*.db
+*.sqlite
+*.sqlite-journal
+
+# PHP 鉴权服务端状态（含 token，绝不入库）
+.auth_users.json
+.auth_tokens.json
+.auth_rate_limit.json
+
+# 壁纸接口缓存（删掉自动重建）
+.color_cache.json
+.image_list_cache.json
+.image_id_map.json
+
+# 杂项
+nohup.out
