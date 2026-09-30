@@ -43,6 +43,23 @@ def parse_due_date(raw: str) -> date:
     return dt.date()
 
 
+def _add_months(d: date, n: int) -> date:
+    """加 n 个月（锚定 d.day，月末自动收敛到当月最后一天）。"""
+    total = (d.month - 1) + n
+    year = d.year + total // 12
+    month = total % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(d.day, last_day))
+
+
+def _add_years(d: date, n: int) -> date:
+    """加 n 年（2-29 遇到平年收敛到 2-28）。"""
+    try:
+        return d.replace(year=d.year + n)
+    except ValueError:
+        return d.replace(year=d.year + n, month=2, day=28)
+
+
 def calc_next_due(todo, base_date: date) -> date:
     """按循环规则算下一次到期日（只读不写，调用方负责落库）。
 
@@ -57,33 +74,51 @@ def calc_next_due(todo, base_date: date) -> date:
 
     if mode == "daily":
         return base_date + timedelta(days=1)
-
-    elif mode == "weekly":
+    if mode == "weekly":
         return base_date + timedelta(weeks=1)
-
-    elif mode == "monthly" or mode == "month_start":
-        year = base_date.year + (1 if base_date.month == 12 else 0)
-        month = 1 if base_date.month == 12 else base_date.month + 1
-        try:
-            return date(year, month, base_date.day)
-        except ValueError:
-            # 1月31日 -> 2月取末日，避免非法日期
-            last_day = calendar.monthrange(year, month)[1]
-            return date(year, month, last_day)
-
-    elif mode == "yearly":
-        try:
-            return date(base_date.year + 1, base_date.month, base_date.day)
-        except ValueError:
-            # 闰年 2-29 -> 平年 2-28
-            return date(base_date.year + 1, 2, 28)
-
-    elif mode == "days":
-        days = todo.cycle_days or 1
-        return base_date + timedelta(days=days)
-
+    if mode in ("monthly", "month_start"):
+        return _add_months(base_date, 1)
+    if mode == "yearly":
+        return _add_years(base_date, 1)
+    if mode == "days":
+        return base_date + timedelta(days=todo.cycle_days or 1)
     # 未知模式 fallback：与 daily 一致
     return base_date + timedelta(days=1)
+
+
+def calc_next_due_after(todo, base_date: date, today: date) -> date:
+    """下一次到期日，且严格大于 today（跳过已错过的周期，不再“补做”过去）。
+
+    - base_date 通常取当前 due_time；daily 一律顺延到明天（今天之后）。
+    - monthly/yearly 以 base_date 的“日”为锚点，避免逐周期累加造成的日期漂移。
+    """
+    nxt = calc_next_due(todo, base_date)
+    if nxt > today:
+        return nxt
+
+    mode = todo.cycle_mode
+    if mode == "days":
+        step = todo.cycle_days or 1
+        k = max(1, ((today - base_date).days // step) + 1)
+        return base_date + timedelta(days=step * k)
+    if mode in ("monthly", "month_start"):
+        n = max(1, (today.year - base_date.year) * 12 + (today.month - base_date.month))
+        cand = _add_months(base_date, n)
+        while cand <= today:
+            n += 1
+            cand = _add_months(base_date, n)
+        return cand
+    if mode == "yearly":
+        n = max(1, today.year - base_date.year)
+        cand = _add_years(base_date, n)
+        while cand <= today:
+            n += 1
+            cand = _add_years(base_date, n)
+        return cand
+    # daily / weekly / 未知：固定步长推进
+    step_days = 7 if mode == "weekly" else 1
+    k = max(1, ((today - base_date).days // step_days) + 1)
+    return base_date + timedelta(days=step_days * k)
 
 
 def ledger_effect(record_type: str, amount: float, interest: float = 0.0) -> Tuple[float, float]:

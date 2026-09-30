@@ -51,7 +51,18 @@ function esc(s) {
 }
 
 function todayStr() {
-  return new Date().toLocaleDateString('sv-SE');
+  /* 与后端一致：统一按 Asia/Shanghai 取当天（避免跨时区判断提醒/逾期不一致） */
+  try {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+  } catch (_e) {
+    return new Date().toLocaleDateString('sv-SE');
+  }
+}
+function daysUntil(iso) {
+  if (!iso) return null;
+  var a = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+  var b = new Date(todayStr() + 'T00:00:00');
+  return Math.round((a - b) / 86400000);
 }
 
 /* 后端失败提示：2 秒内只弹一次，启动 4 路并行失败不再刷屏 */
@@ -281,13 +292,24 @@ function paintHome() {
 
 /* 仪表：各版块简略消息（点击卡片进对应版块） */
 function paintDash() {
+  var today = todayStr();
   var unp = (DB.reminders || []).filter(function (r) { return !r.processed; });
-  var late = unp.filter(function (r) {
-    return r.need_remind && r.due_time && r.due_time !== NO_DATE && r.due_time < todayStr();
+  var overdue = unp.filter(function (r) {
+    return r.need_remind && r.due_time && r.due_time !== NO_DATE && r.due_time < today;
+  }).length;
+  var todayN = unp.filter(function (r) {
+    return r.need_remind && r.due_time && r.due_time !== NO_DATE && r.due_time === today;
+  }).length;
+  var futureN = unp.filter(function (r) {
+    return r.need_remind && !remindArrived(r);
   }).length;
   $('dash-todo').textContent = unp.length ? unp.length + ' 项' : '全部完成';
   $('dash-todo').className = 'dash-v ' + (unp.length ? 'c-warn' : 'c-ok');
-  $('dash-todo-sub').textContent = unp.length ? (late ? late + ' 项逾期' : '暂无逾期') : '';
+  var subParts = [];
+  if (overdue) subParts.push('逾期 ' + overdue);
+  if (todayN) subParts.push('今日 ' + todayN);
+  if (futureN) subParts.push('未到 ' + futureN);
+  $('dash-todo-sub').textContent = unp.length ? (subParts.length ? subParts.join(' · ') : '暂无逾期') : '';
 
   var list = DB.servers || [];
   var bad = list.filter(function (s) { return !s.is_success; });
@@ -299,10 +321,14 @@ function paintDash() {
   $('dash-bm').className = 'dash-v c-blue';
   $('dash-bm-sub').textContent = '';
 
-  /* 主页「仪表」键：有未完成待办或服务异常时显示提醒角标 */
+  /* 主页「仪表」键：仅「需要提醒且已到提醒日」的待办 + 服务异常才算重要消息；
+     无提醒的待办不改变按键样式 */
   var dash = $('act-dash');
   if (dash) {
-    var n = unp.length + bad.length;
+    var dueTodos = (DB.reminders || []).filter(function (r) {
+      return !r.processed && r.need_remind && remindArrived(r);
+    }).length;
+    var n = dueTodos + bad.length;
     dash.classList.toggle('alert', n > 0);
     var badge = $('dash-badge');
     badge.hidden = (n === 0);
@@ -416,40 +442,76 @@ function remindArrived(r) {
   var rd = (r.remind_time && r.remind_time !== NO_DATE) ? String(r.remind_time).slice(0, 10) : '';
   return !rd || rd <= todayStr();
 }
+var P_TXT = { '1': '低', '2': '中', '3': '高' };
 function reminderRowHtml(r) {
+  var today = todayStr();
   var sub = esc(r.content);
   if (r.need_remind && r.due_time && r.due_time !== NO_DATE) {
-    var late = !r.processed && r.due_time < todayStr();
+    var late = !r.processed && r.due_time < today;
     sub += ' · <span class="' + (late ? 'c-bad' : '') + '">到期 ' + esc(r.due_time) + (late ? '（逾期）' : '') + '</span>';
   }
   if (r.need_remind && r.remind_time && r.remind_time !== r.due_time && r.remind_time !== NO_DATE) sub += ' · 提醒 ' + esc(r.remind_time);
+  /* 未到提醒：显示“还有 N 天” */
+  if (r.need_remind && !r.processed && r.remind_time && r.remind_time !== NO_DATE && r.remind_time > today) {
+    var dleft = daysUntil(r.remind_time);
+    if (dleft != null && dleft > 0) sub += ' · <span class="c-cyan">还有 ' + dleft + ' 天</span>';
+  }
   var cyc = cycleTxt(r);
   if (cyc) sub += ' · ' + cyc;
+  if (r.catch_up) sub += ' · 补做';
+  if (r.recurring && r.last_completed_date && r.last_completed_date !== NO_DATE) sub += ' · 上次 ' + esc(String(r.last_completed_date).slice(0, 10));
+
   var locked = todoLocked(r);
   var btitle = r.processed ? '重新打开（撤销完成）'
     : (locked ? '未到提醒日，' + String(r.remind_time).slice(0, 10) + ' 后可完成' : '完成');
+  var pr = Number(r.priority) || 0;
+  var snooze = (!r.processed && r.need_remind)
+    ? '<button class="link" title="推迟' + (r.recurring ? '一个周期' : '一天') + '" onclick="snoozeReminder(' + r.id + ', this)">推迟</button>'
+    : '';
   return '<div class="row' + (r.processed ? ' done' : '') + (locked ? ' locked' : '') + '">' +
+    (pr ? '<span class="pdot p' + pr + '" title="' + (P_TXT[pr] || '') + '优先级"></span>' : '') +
     '<button class="done-btn' + (r.processed ? ' done' : '') + '" title="' + btitle + '"' +
       (locked ? ' disabled' : '') +
       ' onclick="' + (r.processed ? 'reopenReminder' : 'doneReminder') + '(' + r.id + ', this)">✓</button>' +
     '<span class="grow">' + esc(r.title || r.content) + '<small class="sub">' + sub + '</small></span>' +
+    ((r.id === _undoId) ? '<button class="link ok" onclick="undoReminder(' + r.id + ', this)">撤销</button>' : '') +
+    snooze +
     '<button class="link blue" onclick="openEditReminderForm(' + r.id + ')">编辑</button>' +
     '<button class="link bad" onclick="delReminder(this,' + r.id + ')">删除</button>' +
     '</div>';
 }
 var _showFuture = false; /* 是否展开「未到提醒」分组 */
+var _showDone = false;   /* 是否展开「已完成」分组 */
+var _undoId = null;      /* 刚完成、短期可撤销的待办 id */
 function toggleFutureReminders() { _showFuture = !_showFuture; paintReminders(DB.reminders); }
+function toggleDoneReminders() { _showDone = !_showDone; paintReminders(DB.reminders); }
+/* 组内排序：优先级高在前 → 到期日早在前（逾期自然靠前） → id */
+function sortReminders(arr) {
+  return arr.slice().sort(function (a, b) {
+    var pa = Number(a.priority) || 0, pb = Number(b.priority) || 0;
+    if (pa !== pb) return pb - pa;
+    var da = (a.due_time && a.due_time !== NO_DATE) ? String(a.due_time) : '9999-99-99';
+    var db = (b.due_time && b.due_time !== NO_DATE) ? String(b.due_time) : '9999-99-99';
+    if (da !== db) return da < db ? -1 : 1;
+    return (a.id || 0) - (b.id || 0);
+  });
+}
 function paintReminders(list) {
   DB.reminders = list;
   var q = FQ.reminders;
   var matches = list.filter(function (r) { return matchQ(q, r.title) || matchQ(q, r.content); });
-  /* 分组：无提醒（前台常显）/ 已到提醒（前台）/ 未到提醒（默认收起） */
-  var noRemind = [], due = [], future = [];
+  /* 分组：无提醒 / 已到提醒 / 未到提醒（默认收起）/ 已完成（默认收起） */
+  var noRemind = [], due = [], future = [], done = [];
   matches.forEach(function (r) {
-    if (!r.need_remind) noRemind.push(r);
+    if (r.processed) done.push(r);
+    else if (!r.need_remind) noRemind.push(r);
     else if (remindArrived(r)) due.push(r);
     else future.push(r);
   });
+  noRemind = sortReminders(noRemind);
+  due = sortReminders(due);
+  future = sortReminders(future);
+  done.sort(function (a, b) { return (b.id || 0) - (a.id || 0); });
 
   var parts = [];
   if (noRemind.length) parts.push('<div class="tgroup">待办</div>' + noRemind.map(reminderRowHtml).join(''));
@@ -459,6 +521,13 @@ function paintReminders(list) {
       parts.push('<div class="tgroup">未到提醒</div>' + future.map(reminderRowHtml).join(''));
     } else {
       parts.push('<button class="tgroup-toggle" onclick="toggleFutureReminders()"><span>未到提醒 · ' + future.length + ' 项</span><span class="link">展开 ›</span></button>');
+    }
+  }
+  if (done.length) {
+    if (_showDone || q) {
+      parts.push('<div class="tgroup">已完成</div>' + done.map(reminderRowHtml).join(''));
+    } else {
+      parts.push('<button class="tgroup-toggle" onclick="toggleDoneReminders()"><span>已完成 · ' + done.length + ' 项</span><span class="link">展开 ›</span></button>');
     }
   }
 
@@ -494,6 +563,7 @@ function doneReminder(id, btn) {
       LT.reminders = Date.now();
       if (r.recurring && r.due_time) Toast.success('已完成，顺延到 ' + String(r.due_time).slice(0, 10));
       else Toast.success('已完成');
+      offerUndo(id); /* 约 6 秒内可撤销这次完成 */
       paintReminders(DB.reminders);
     } else {
       loadReminders(true);
@@ -502,6 +572,40 @@ function doneReminder(id, btn) {
     if (btn) btn.classList.remove('busy');
     failToast();
   });
+}
+/* 完成后提供「撤销」（后端 /undo 回滚日期/状态），保留约 30 秒 */
+function offerUndo(id) {
+  _undoId = id;
+  setTimeout(function () {
+    if (_undoId === id) { _undoId = null; paintReminders(DB.reminders); }
+  }, 30000);
+}
+function undoReminder(id, btn) {
+  _undoId = null;
+  if (btn) btn.classList.add('busy');
+  api('/todos/' + id + '/undo', 'POST').then(function (r) {
+    if (r && typeof r.id !== 'undefined') {
+      updateReminderLocal(r);
+      LT.reminders = Date.now();
+      paintReminders(DB.reminders);
+    } else {
+      loadReminders(true);
+    }
+  }).catch(function () { if (btn) btn.classList.remove('busy'); failToast(); });
+}
+/* 行内推迟：循环一个周期 / 一次性 +1 天（`POST /snooze`） */
+function snoozeReminder(id, btn) {
+  if (btn) btn.classList.add('busy');
+  api('/todos/' + id + '/snooze', 'POST').then(function (r) {
+    if (btn) btn.classList.remove('busy');
+    if (r && typeof r.id !== 'undefined') {
+      updateReminderLocal(r);
+      LT.reminders = Date.now();
+      paintReminders(DB.reminders);
+    } else {
+      loadReminders(true);
+    }
+  }).catch(function () { if (btn) btn.classList.remove('busy'); failToast(); });
 }
 function reopenReminder(id, btn) {
   if (btn) btn.classList.add('busy');
@@ -521,6 +625,19 @@ function reopenReminder(id, btn) {
   });
 }
 
+/* 「循环」联动：每天免日期；每 N 天显示天数；补做只对非每天循环显示 */
+function syncCycle() {
+  var mode = $('fr-cycle').value || 'once';
+  var daily = (mode === 'daily');
+  var days = (mode === 'days');
+  var recurring = (mode !== 'once');
+  $('fr-days-row').hidden = !days;
+  $('fr-dates').hidden = daily;
+  $('fr-daily-hint').hidden = !daily;
+  $('fr-date-hint').hidden = daily;
+  $('fr-catchup-wrap').hidden = !(recurring && !daily);
+}
+
 /* 待办新建/编辑：待办版块内联表单（是否提醒勾选后展开日期区） */
 function openReminderForm() {
   if (currentView !== '待办') goView('待办');
@@ -530,9 +647,13 @@ function openReminderForm() {
   $('fr-content').value = '';
   $('fr-need').checked = false;
   $('fr-remind-box').hidden = true;
-  setDate('fr-due', todayStr());
+  setDate('fr-due', '');
   setDate('fr-remind', '');
   setISelect('fr-cycle', 'once');
+  setISelect('fr-priority', '0');
+  $('fr-cycle-days').value = '7';
+  $('fr-catchup').checked = false;
+  syncCycle();
   openForm('iform-reminders', 'fr-title');
 }
 function openEditReminderForm(id) {
@@ -552,8 +673,12 @@ function openEditReminderForm(id) {
   setDate('fr-due', (r.due_time && r.due_time !== NO_DATE) ? String(r.due_time).slice(0, 10) : '');
   setDate('fr-remind', (r.remind_time && r.remind_time !== NO_DATE) ? String(r.remind_time).slice(0, 10) : '');
   var cyc = r.cycle_mode || 'once';
-  if (!/^(once|daily|weekly|monthly|yearly)$/.test(cyc)) cyc = 'once';
+  if (!/^(once|daily|weekly|monthly|yearly|days)$/.test(cyc)) cyc = 'once';
   setISelect('fr-cycle', cyc);
+  setISelect('fr-priority', String(Number(r.priority) || 0));
+  $('fr-cycle-days').value = String(r.cycle_days || 7);
+  $('fr-catchup').checked = !!r.catch_up;
+  syncCycle();
   openForm('iform-reminders', 'fr-title');
 }
 function saveReminderForm() {
@@ -561,12 +686,41 @@ function saveReminderForm() {
   var title = $('fr-title').value.trim(), content = $('fr-content').value.trim();
   if (!title) { markInvalid($('fr-title')); Toast.warning('标题必填'); return; }
   if (!content) { markInvalid($('fr-content')); Toast.warning('内容必填'); return; }
-  var body = { title: title, content: content, need_remind: $('fr-need').checked };
+  var body = { title: title, content: content, need_remind: $('fr-need').checked, priority: Number($('fr-priority').value) || 0 };
   if (body.need_remind) {
-    var due = dateVal('fr-due'), rem = dateVal('fr-remind');
-    if (due) body.due_time = due.slice(0, 10);
-    if (rem) body.remind_time = rem.slice(0, 10);
     body.cycle_mode = $('fr-cycle').value || 'once';
+    if (body.cycle_mode === 'days') {
+      var cd = parseInt(($('fr-cycle-days').value || '').replace(/[^0-9]/g, ''), 10);
+      body.cycle_days = (cd > 0) ? Math.min(cd, 365) : 7;
+    }
+    /* 错过后逐期补做：只对非每天循环有效 */
+    body.catch_up = (body.cycle_mode !== 'once' && body.cycle_mode !== 'daily') ? !!$('fr-catchup').checked : false;
+    if (body.cycle_mode === 'daily') {
+      /* 每天：不用选日期，按今天起算；已是 daily 的沿用当前顺延位置，避免编辑标题时重置 */
+      var cur = null;
+      if (id) {
+        for (var i = 0; i < DB.reminders.length; i++) {
+          if (String(DB.reminders[i].id) === String(id)) { cur = DB.reminders[i]; break; }
+        }
+      }
+      if (!(cur && cur.recurring && cur.cycle_mode === 'daily')) {
+        var now = todayStr();
+        body.due_time = now;
+        body.remind_time = now;
+      }
+      body.advance_days = 0; /* 每天提醒即当天，不提前 */
+    } else {
+      var due = dateVal('fr-due'), rem = dateVal('fr-remind');
+      if (!due) { markInvalid($('fr-due')); return; } /* 到期日必须手动选择 */
+      body.due_time = due.slice(0, 10);
+      if (rem) {
+        body.remind_time = rem.slice(0, 10);
+        /* 提前天数 = 到期日 - 提醒日，供循环顺延时保留同一提前量 */
+        body.advance_days = Math.max(0, Math.round((new Date(due) - new Date(rem)) / 86400000));
+      } else {
+        body.advance_days = 3; /* 未设置提醒日：默认提前 3 天 */
+      }
+    }
   }
   var done = function () {
     Toast.success(id ? '已保存' : '已保存待办');
@@ -848,7 +1002,8 @@ bindForm('iform-reminders', 'fr-save', 'fr-cancel', 'fr-close', saveReminderForm
 bindForm('iform-expenses', 'fe-save', 'fe-cancel', 'fe-close', saveExpenseForm);
 bindForm('iform-asset', 'fa-save', 'fa-cancel', 'fa-close', saveAssetForm);
 bindForm('iform-bookmarks', 'fb-save', 'fb-cancel', 'fb-close', saveBookmarkForm);
-$('fr-need').addEventListener('change', function () { $('fr-remind-box').hidden = !this.checked; });
+$('fr-need').addEventListener('change', function () { $('fr-remind-box').hidden = !this.checked; syncCycle(); });
+$('fr-cycle').addEventListener('change', syncCycle);
 $('fe-type').addEventListener('change', syncInterest);
 
 /* ── 自定义日期选择（不用原生日期控件）：字段为按钮，日历面板插到当前行下方 ── */
@@ -891,9 +1046,7 @@ function renderPicker() {
     '<button type="button" class="ip-nav" data-nav="1">›</button></div>' +
     '<div class="ip-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>' +
     '<div class="ip-days">' + cells.join('') + '</div>' +
-    '<div class="ip-quick"><button type="button" data-quick="today">今天</button>' +
-    '<button type="button" data-quick="tomorrow">明天</button>' +
-    '<button type="button" data-quick="clear">清空</button></div>';
+      '<div class="ip-quick"><button type="button" data-quick="clear">清空</button></div>';
 }
 function openPicker(fieldId) {
   var el = $(fieldId);
@@ -957,12 +1110,7 @@ $('ipicker').addEventListener('click', function (e) {
   var day = t.getAttribute && t.getAttribute('data-d');
   if (day) { applyDate(day); return; }
   var q = t.getAttribute && t.getAttribute('data-quick');
-  if (q === 'today') applyDate(todayStr());
-  else if (q === 'tomorrow') {
-    var d = new Date();
-    d.setDate(d.getDate() + 1);
-    applyDate(d.toLocaleDateString('sv-SE'));
-  } else if (q === 'clear') applyDate('');
+  if (q === 'clear') applyDate('');
 });
 var dateBtns = document.querySelectorAll('.idate');
 for (var _d = 0; _d < dateBtns.length; _d++) {

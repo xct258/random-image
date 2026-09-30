@@ -34,7 +34,10 @@ class Todo(SQLModel, table=True):
 
     due_time: Optional[date] = Field(default=None)
     remind_time: Optional[date] = Field(default=None)
-    advance_days: Optional[int] = Field(default=0)
+    advance_days: Optional[int] = Field(default=3)  # 提醒提前天数：未显式给提醒日时默认提前 3 天
+
+    priority: int = Field(default=0)  # 优先级：0 无 / 1 低 / 2 中 / 3 高
+    catch_up: bool = Field(default=False)  # 循环逾期后：False 跳过到未来，True 逐期补做
 
     recurring: bool = Field(default=False)
     cycle_mode: Optional[str] = Field(
@@ -43,6 +46,10 @@ class Todo(SQLModel, table=True):
     cycle_days: Optional[int] = Field(default=None)
 
     last_completed_date: Optional[date] = Field(default=None)
+
+    # 完成前的快照（供 /undo 回滚循环顺延）：{due_time, remind_time, processed, last_completed_date}
+    undo_snapshot: Optional[Dict] = Field(default=None, sa_column=Column(JSON))
+
     created_at: date = Field(default_factory=date.today)
 
 

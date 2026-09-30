@@ -22,12 +22,27 @@
 
 - 添加 5 条示例书签（用户指示）：`GitHub` / `Bilibili` / `豆包` / `MDN` / `Docker Hub`（经 `POST /bookmarks` 写入，原库为空）。
 
+- 到期日必选 + 日期弹窗精简（用户指示）：新建待办到期日不再默认今天（清空且必填校验，`markInvalid` 标红并聚焦）；日期选择浮层去掉「今天 / 明天」快捷键（只留「清空」）；非「每天」任务显示提示「到期日必填；提醒日可选，不填默认提前 3 天」。
+- 提醒日可选、默认提前 3 天（用户指示）：表单「提醒日」改「（可选）默认提前 3 天」；保存时未填则 `advance_days=3`（后端按 `due-3` 推提醒日），填了则按实际差值存 `advance_days`（循环顺延时保留同一提前量）；后端 `Todo.advance_days` 默认 0→3 作兜底。
+- 仪表键提醒口径（用户指示）：主页「▦ 仪表」角标/告警样式只统计「需要提醒且已到提醒日」的未完成待办 + 服务异常；**无提醒的待办不再影响**该按键样式（`paintDash` 用 `need_remind && remindArrived`）。
+- 待办第二批优化（用户指示，排除快速添加/真正提醒/移动端滑动）：
+  - 列表：组内按「优先级高在前 → 到期日早在前（逾期置顶）→ id」排序（`sortReminders`）；一次性完成后进「已完成」折叠组（默认收起，`_showDone`）；未到提醒行显示「还有 N 天」（`daysUntil`）。
+  - 行内「推迟」：循环顺延一周期 / 一次性 +1 天（`snoozeReminder` → 新增 `POST /todos/{id}/snooze`）。
+  - 反馈：循环任务副行显示「上次完成 YYYY-MM-DD」（`last_completed_date`）；仪表「待办」卡拆成「逾期 / 今日 / 未到」。
+  - 结构：优先级（无/低/中/高，优先点 + 表单自定义下拉 + 组内排序）；表单新增「每 N 天」（`cycle_days`）与「错过后逐期补做」勾选（后端 `catch_up` 列，`mark_processed` 按它走 `calc_next_due` 或 `calc_next_due_after`）。
+  - 口径与一致性：前端 `todayStr()` 统一按 `Asia/Shanghai` 取日（与后端一致）；编辑待办即清 `undo_snapshot`（撤销快照失效）。库用 `ALTER TABLE` 加 `priority` / `catch_up` 列（保留数据，`data/` 备份在 `/tmp/random-image-backup-*` 与 `random-image-todos-backup-001.db`）。
+- 待办后端优化（用户指示，按方案 P0）：
+  - 统一逾期顺延：新增 `utils.calc_next_due_after(todo, base, today)`，循环任务完成后下一次 `due_time` 保证**严格晚于今天**（daily 即明天，weekly/monthly/yearly/days 跳过已错过的周期；monthly/yearly 以原「日」为锚点避免漂移）；`mark_processed` 去掉 daily 特判、统一走它。
+  - 完成可撤销：`Todo` 加 `undo_snapshot` JSON 列（存完成前 `due/remind/processed/last_completed`），`mark_processed` 先快照；新增 `POST /todos/{id}/undo` 回滚并清空快照。已有 `data/todos.db` 用 `ALTER TABLE` 加列（备份 `/tmp/random-image-todos-backup-001.db`），未删数据。
+  - 前端 `doneReminder` 完成后行内提供「撤销」约 30 秒（`undoReminder` → `/undo`），超时后自动消失。
+- 待办表单「循环」提前 + 每天免选日期（用户指示）：把「循环」选择移到「到期日/提醒日」之前（`#fr-dates`）；选「每天」时隐藏日期并显示提示（`syncCycle`），保存时按今天起算（已是 daily 的沿用当前顺延位置，避免编辑标题把日期重置）；每天任务完成即顺延到明天、当天完成后再不显示。
+- 菜单展开态用主题色（用户指示）：☰/🔍 的 `.icon-btn.active` 描边与光环、下拉 `.menu` 顶边、`.nav-item.active` 高亮改用 `--accent`（`color-mix`，保留兜底）。
 - 清空全部业务数据（用户指示）：清空 `后端/data/` 四个库的全部表（`todo` / `bookmark` / `serverstatus` / `ledger_items` + `asset` / `liability`），保留表结构与运行中的 uvicorn 服务；清空前已备份 data/ 到 `/tmp/random-image-data-backup-001.tar.gz`。
 - 弹窗/遮罩用壁纸主题色（用户指示）：以 `--accent`（壁纸 `X-Theme-Color-Hex`）经 `color-mix` 派生——遮罩 `.iform-wrap` 暗幕染主题色 16%，弹窗 `.iform` 底色 12% + 描边/顶高光/外发光按主题色，输入聚焦边框、`.idate.open`、日期面板 `.ipicker`（底/边）、`.ip-day.today/.sel` 全部改用 `--accent`；深色底与不支持 `color-mix` 时的回退值保留（可读性不受影响）。
 - 统一标题栏样式（用户反馈，以主页为准）：`.apptop` 与 `.home-head` 统一为 `padding:14px 14px 12px` + 浅底 `rgba(0,0,0,.12)` + 底部分隔线 + `text-shadow`；`.apptop` 去掉原 `min-height:50px` / `padding:9px 14px`；窄屏两者同步 `10px 10px 9px`。再给两者统一 `min-height:58px`（窄屏 53px）——此前主页头最高是 28px 的「▦ 仪表」chip、其它版块是 32px 的 ☰，导致主页↔仪表切换时标题栏高度差约 4px。
 - 去掉顶栏余额/负债键（用户指示）：删除记账动作区的 `#asset-total` / `#liability-total` 两个校准键；`paintTotals` 仅保留取数供仪表「记账」卡（`MONEY`），校准表单 `#iform-asset` 与 `openAssetForm` 暂留但无入口。
-- 搜索键移到卡片顶栏（用户指示）：四个版块的搜索框/按钮合并为顶栏一个搜索控件（`#act-search` 🔍 + `#search-input`），放在动作按钮之前（顶栏右簇内），按当前版块过滤（`SEARCH_VIEW`），切版块自动收起并清空过滤；移除各列表的 `.panel-head`。
-- 移动端布局优化（用户指示）：窄屏展开的搜索框改为浮在顶栏下方（`position:absolute` 满宽、不占流），不挤动动作区与菜单；图标键触控尺寸 32→34px；新增 `≤480px` 断点（表单 `.irow` 改单列、仪表两列、内边距收紧）。
+- 搜索键移到卡片顶栏（用户指示）：四个版块的搜索框/按钮合并为顶栏一个搜索控件（`#act-search` 🔍 + 其**左侧**收起的 `#search-input`），点 🔍 在按钮左边展开一个小搜索框（宽 150px、窄屏 120px），按当前版块过滤（`SEARCH_VIEW`），切版块自动收起并清空过滤；移除各列表的 `.panel-head`。
+- 移动端布局优化（用户指示）：图标键触控尺寸 32→34px；窄屏搜索框仍内联在 🔍 左侧（120px）；新增 `≤480px` 断点（表单 `.irow` 改单列、仪表两列、内边距收紧）。
 - 停用右上角 Toast（用户指示）：`js/notify.js` 去掉 DOM/样式实现，`Toast` API 改为空实现（不影响各调用处）；操作反馈改由顶部「加载中…」全局指示与表单标红承担，失败不再弹右上角提示。
 - 全局请求加载反馈（用户指示）：只对**写操作**（POST/PUT/DELETE：添加/编辑/删除/完成等）显示——`api()` 出口维护在飞计数（`netStart/netEnd`），写请求在飞时右上角淡入「加载中…」胶囊（延迟 180ms、避免快请求闪烁），结束淡出；GET 列表加载、首屏、壁纸加载都不显示该指示。待办完成/重开另有按钮内 spinner。
 - 待办分组 + 未到提醒收起（用户指示）：`paintReminders` 按「无提醒 / 已到提醒 / 未到提醒」分组（`.tgroup` 标题）；无提醒待办直接显示、已到提醒的前台显示，未到提醒默认收起为「未到提醒 · N 项」展开键（`toggleFutureReminders`，搜索时自动展开）；未到提醒组的完成键仍置灰（复用 `todoLocked`），到提醒日才可完成。

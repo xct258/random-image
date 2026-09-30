@@ -30,8 +30,8 @@
           <small id="view-sub"></small>
         </div>
         <div class="acts">
-          <button class="icon-btn" id="act-search" title="搜索" style="display:none" onclick="toggleSearchBar()">🔍</button>
           <span class="searchbox" id="searchbox" hidden><input id="search-input" class="search" type="text" placeholder="搜索…"></span>
+          <button class="icon-btn" id="act-search" title="搜索" style="display:none" onclick="toggleSearchBar()">🔍</button>
           <button class="btn primary" id="act-todo" onclick="openReminderForm()" style="display:none">+ 添加</button>
           <span id="act-exp" class="chips" style="display:none">
             <button class="btn primary" onclick="openExpenseForm()">+ 记账</button>
@@ -150,12 +150,20 @@
         <input type="hidden" id="fr-id">
         <label class="ifield"><span>标题</span><input id="fr-title" type="text" placeholder="待办标题…" maxlength="100"></label>
         <label class="ifield"><span>内容</span><textarea id="fr-content" rows="2" placeholder="待办内容…"></textarea></label>
+        <div class="ifield"><span>优先级</span>
+          <div class="isel" id="fr-priority-sel">
+            <button type="button" class="isel-btn" aria-haspopup="listbox" onclick="toggleISelect('fr-priority-sel')"><span class="isel-txt">无</span></button>
+            <div class="isel-menu" hidden role="listbox">
+              <button type="button" class="isel-opt" data-value="0">无</button>
+              <button type="button" class="isel-opt" data-value="3">高</button>
+              <button type="button" class="isel-opt" data-value="2">中</button>
+              <button type="button" class="isel-opt" data-value="1">低</button>
+            </div>
+          </div>
+          <input type="hidden" id="fr-priority" value="0">
+        </div>
         <label class="icheck"><input id="fr-need" type="checkbox"> 需要提醒</label>
         <div class="isub" id="fr-remind-box" hidden>
-                  <div class="irow">
-                    <div class="ifield"><span>到期日</span><button type="button" class="idate" id="fr-due" data-value="" data-ph="选择到期日"><span class="idate-txt">选择到期日</span></button></div>
-                    <div class="ifield"><span>提醒日</span><button type="button" class="idate" id="fr-remind" data-value="" data-ph="选择提醒日"><span class="idate-txt">选择提醒日</span></button></div>
-                  </div>
           <div class="ifield"><span>循环</span>
             <div class="isel" id="fr-cycle-sel">
               <button type="button" class="isel-btn" aria-haspopup="listbox" onclick="toggleISelect('fr-cycle-sel')"><span class="isel-txt">一次性</span></button>
@@ -165,10 +173,20 @@
                 <button type="button" class="isel-opt" data-value="weekly">每周</button>
                 <button type="button" class="isel-opt" data-value="monthly">每月</button>
                 <button type="button" class="isel-opt" data-value="yearly">每年</button>
+                <button type="button" class="isel-opt" data-value="days">每 N 天</button>
               </div>
             </div>
             <input type="hidden" id="fr-cycle" value="once">
           </div>
+          <div class="ifield" id="fr-days-row" hidden><span>每几天</span><input id="fr-cycle-days" type="number" min="1" max="365" step="1" value="7" inputmode="numeric"></div>
+          <!-- 选「每天」时隐藏日期：每天循环，完成即顺延到明天 -->
+          <div class="irow" id="fr-dates">
+            <div class="ifield"><span>到期日</span><button type="button" class="idate" id="fr-due" data-value="" data-ph="选择到期日"><span class="idate-txt">选择到期日</span></button></div>
+            <div class="ifield"><span>提醒日（可选）</span><button type="button" class="idate" id="fr-remind" data-value="" data-ph="默认提前 3 天"><span class="idate-txt">默认提前 3 天</span></button></div>
+          </div>
+          <div class="iform-hint" id="fr-date-hint">到期日必填；提醒日可选，不填默认提前 3 天。</div>
+          <div class="iform-hint" id="fr-daily-hint" hidden>每天循环：完成后自动顺延到明天，今天不用再管。</div>
+          <label class="icheck" id="fr-catchup-wrap" hidden><input id="fr-catchup" type="checkbox"> 错过后逐期补做（不勾选则跳到下一次）</label>
         </div>
         <div class="iform-acts">
           <button class="btn" id="fr-cancel">取消</button>

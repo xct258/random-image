@@ -176,6 +176,7 @@ body.boot .view.active > * { animation: rise .22s ease; }
   background: rgba(2, 6, 23, .9);
   border: 1px solid var(--stroke);
   border-top-color: var(--stroke-hi);
+  border-top-color: color-mix(in srgb, var(--accent) 45%, rgba(255, 255, 255, .28));
   box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
   opacity: 0;
   visibility: hidden;
@@ -212,7 +213,9 @@ body.boot .view.active > * { animation: rise .22s ease; }
 .nav-item.active {
   color: #fff;
   background: linear-gradient(90deg, rgba(34, 211, 238, .18), rgba(34, 211, 238, .04));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 5%, transparent));
   border-color: rgba(34, 211, 238, .28);
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 /* 顶栏图标键（菜单） */
@@ -235,7 +238,13 @@ body.boot .view.active > * { animation: rise .22s ease; }
 }
 .icon-btn:hover { background: var(--fill-hi); border-color: rgba(255, 255, 255, .2); }
 .icon-btn:active { transform: scale(.9); }
-.icon-btn.active { background: var(--fill-hi); border-color: rgba(34, 211, 238, .4); box-shadow: 0 0 0 1px rgba(34, 211, 238, .25); }
+.icon-btn.active {
+  background: var(--fill-hi);
+  border-color: rgba(34, 211, 238, .4);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .25);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
+}
 
 /* ── 主页：不设顶栏，只有「★ 书签」标题行 +「▦ 仪表」跳转（无菜单） ── */
 body.home .apptop { display: none; }
@@ -372,8 +381,8 @@ button.chip:active { transform: scale(.95); }
 
 /* 内容容器（无底色，透明叠在舞台玻璃上） */
 .panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-/* 顶栏搜索控件（四个版块共用，🔍 展开） */
-.searchbox { flex: 0 1 200px; min-width: 0; display: inline-flex; }
+/* 顶栏搜索控件（四个版块共用；🔍 左侧展开一个小搜索框） */
+.searchbox { flex: 0 1 150px; min-width: 0; display: inline-flex; }
 .searchbox[hidden] { display: none; }
 .panel-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
@@ -517,6 +526,8 @@ button.chip:active { transform: scale(.95); }
   background: rgba(255, 255, 255, .03);
   border: 1px dashed rgba(255, 255, 255, .16);
 }
+.iform-hint { font-size: 11px; color: var(--text-dim); }
+.iform-hint[hidden] { display: none; }
 .iform-acts { display: flex; gap: 8px; justify-content: flex-end; padding-top: 2px; }
 
 /* ── 自定义日期选择（替代原生日期控件） ── */
@@ -672,6 +683,11 @@ button.chip:active { transform: scale(.95); }
 .dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
 .dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(52, 211, 153, .7); }
 .dot.bad { background: var(--bad); box-shadow: 0 0 8px rgba(251, 113, 133, .7); }
+/* 待办优先级圆点：1 低（蓝）/ 2 中（黄）/ 3 高（红） */
+.pdot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+.pdot.p1 { background: var(--blue); box-shadow: 0 0 6px rgba(96, 165, 250, .7); }
+.pdot.p2 { background: var(--warn); box-shadow: 0 0 6px rgba(251, 191, 36, .7); }
+.pdot.p3 { background: var(--bad); box-shadow: 0 0 7px rgba(251, 113, 133, .8); }
 
 /* 待办完成圈 */
 .done-btn {
@@ -804,19 +820,7 @@ button.chip:active { transform: scale(.95); }
   .icon-btn { width: 34px; height: 34px; }
   .menu { right: 0; width: 180px; }
   .stage { min-height: 0; }
-  /* 展开的搜索框浮在顶栏下方，满宽，不挤动动作区与菜单 */
-  .searchbox:not([hidden]) {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 8px;
-    right: 8px;
-    z-index: 4;
-    padding: 6px;
-    background: rgba(9, 13, 26, .97);
-    border: 1px solid rgba(255, 255, 255, .14);
-    border-radius: var(--r-sm);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
-  }
+  .searchbox:not([hidden]) { flex: 0 1 120px; } /* 窄屏搜索框再小一点，仍在 🔍 左侧 */
   .iform-box { padding: 12px; }
   .panel-scroll { padding: 10px; }
   .home-head { min-height: 53px; padding: 10px 10px 9px; }

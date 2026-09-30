@@ -8,8 +8,9 @@
 
 核心概念：
 - 一次性任务：``PUT /todos/{rid}/processed`` 后 ``processed=True``，不再出现。
-- 循环任务（``recurring=True``）：打卡后按 ``cycle_mode`` 算出下一次 ``due_time``，
-  ``processed`` 保持 False。daily 任务直接顺延到明天（不管拖欠几天）。
+- 循环任务（``recurring=True``）：完成后按 ``cycle_mode`` 算出下一次 ``due_time``，
+  ``processed`` 保持 False；下一次保证**严格晚于今天**（daily 即明天，其余跳过已错过的周期）。
+- 完成前会把旧状态存到 ``undo_snapshot``，``POST /todos/{rid}/undo`` 可回滚上一次完成。
 
 调试速查::
 
@@ -19,6 +20,8 @@
     $ curl -X POST localhost:8000/todos -H 'Content-Type: application/json' \\
         -d '{"title":"浇花","content":"阳台","cycle_mode":"daily"}'
     $ curl -X PUT localhost:8000/todos/1/processed
+    $ curl -X POST localhost:8000/todos/1/undo
+    $ curl -X POST localhost:8000/todos/1/snooze
     $ curl -X DELETE localhost:8000/todos/1
 """
 from datetime import date, datetime, timedelta
@@ -30,7 +33,7 @@ from sqlmodel import Session, select
 
 from db import get_todo_session
 from models import Todo
-from utils import calc_next_due, parse_due_date
+from utils import calc_next_due, calc_next_due_after, parse_due_date
 
 router = APIRouter()
 
@@ -120,8 +123,13 @@ def update_todo(
         raise HTTPException(404, "Todo not found")
 
     today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    r.undo_snapshot = None  # 编辑后「撤销上一次完成」失效
 
     for field in ["title", "content"]:
+        if field in payload:
+            setattr(r, field, payload[field])
+
+    for field in ["priority", "catch_up"]:
         if field in payload:
             setattr(r, field, payload[field])
 
@@ -172,6 +180,16 @@ def update_todo(
     return r
 
 
+def _snapshot(r: Todo) -> dict:
+    """完成前的状态快照（日期转 ISO 字符串，便于存 JSON 列 / 撤销回滚）。"""
+    return {
+        "due_time": r.due_time.isoformat() if r.due_time else None,
+        "remind_time": r.remind_time.isoformat() if r.remind_time else None,
+        "processed": r.processed,
+        "last_completed_date": r.last_completed_date.isoformat() if r.last_completed_date else None,
+    }
+
+
 @router.put("/todos/{rid}/processed")
 def mark_processed(
     rid: int = Path(...),
@@ -182,26 +200,77 @@ def mark_processed(
         raise HTTPException(404, "Todo not found")
 
     today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+
+    r.undo_snapshot = _snapshot(r)  # 供 /undo 回滚
     r.last_completed_date = today
 
     if r.recurring:
         base_due = r.due_time or today
-
-        if r.cycle_mode == "daily":
-            # 每日打卡直觉：不管拖欠几天，一律顺延到明天
-            next_due = today + timedelta(days=1)
-        else:
+        if r.catch_up:
+            # 逐期补做：按旧 due 只顺延一个周期（可能仍在过去，需继续完成）
             next_due = calc_next_due(r, base_due)
-
+        else:
+            # 跳过已错过的周期：下一次严格晚于今天（daily 即明天）
+            next_due = calc_next_due_after(r, base_due, today)
         r.due_time = next_due
-
         adv = r.advance_days or 0
         r.remind_time = next_due - timedelta(days=adv)
-
         r.processed = False
     else:
         r.processed = True
 
+    session.commit()
+    session.refresh(r)
+    return r
+
+
+@router.post("/todos/{rid}/undo")
+def undo_processed(
+    rid: int = Path(...),
+    session: Session = Depends(get_todo_session),
+):
+    """撤销上一次完成：恢复到完成前的日期/状态。"""
+    r = session.get(Todo, rid)
+    if not r:
+        raise HTTPException(404, "Todo not found")
+
+    snap = r.undo_snapshot
+    if not snap:
+        raise HTTPException(400, "nothing to undo")
+
+    r.due_time = _parse_date_field(snap["due_time"]) if snap.get("due_time") else None
+    r.remind_time = _parse_date_field(snap["remind_time"]) if snap.get("remind_time") else None
+    r.last_completed_date = (
+        _parse_date_field(snap["last_completed_date"]) if snap.get("last_completed_date") else None
+    )
+    r.processed = bool(snap.get("processed"))
+    r.undo_snapshot = None
+
+    session.commit()
+    session.refresh(r)
+    return r
+
+
+@router.post("/todos/{rid}/snooze")
+def snooze_todo(
+    rid: int = Path(...),
+    session: Session = Depends(get_todo_session),
+):
+    """行内推迟：循环任务顺延一个周期，一次性任务 +1 天（从 due/今天中较晚者起算）。"""
+    r = session.get(Todo, rid)
+    if not r:
+        raise HTTPException(404, "Todo not found")
+    if not r.need_remind:
+        raise HTTPException(400, "only reminder todos can snooze")
+
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    base = r.due_time or today
+    anchor = base if base > today else today
+    next_due = calc_next_due(r, anchor) if r.recurring else anchor + timedelta(days=1)
+
+    r.due_time = next_due
+    adv = r.advance_days or 0
+    r.remind_time = next_due - timedelta(days=adv)
     session.commit()
     session.refresh(r)
     return r
