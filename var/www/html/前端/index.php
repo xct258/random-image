@@ -17,30 +17,33 @@
   <!-- ═══ 全屏壁纸层 + 加载提示（壁纸就绪后淡出） ═══ -->
   <div id="anime-bg"></div>
   <div id="bg-loader"><span class="spin"></span><span>壁纸加载中…</span></div>
+  <!-- ═══ 全局请求加载指示（有后端请求在飞时显示） ═══ -->
+  <div id="net-loading" aria-live="polite"><span class="spin"></span><span>加载中…</span></div>
 
   <!-- ═══ 应用外壳：单张内容卡片 = 卡片头（标题/动作/菜单）+ 状态磁贴 + 视图内容 ═══ -->
   <div class="app">
     <main class="stage">
       <!-- ═══ 卡片头：标题/摘要 + 按版块切换的动作区 + 菜单（导航/换壁纸） ═══ -->
       <header class="apptop">
-        <div class="ttl">
+        <div class="ttl" id="view-ttl">
           <h1 id="view-title">主页</h1>
           <small id="view-sub"></small>
         </div>
         <div class="acts">
+          <button class="icon-btn" id="act-search" title="搜索" style="display:none" onclick="toggleSearchBar()">🔍</button>
+          <span class="searchbox" id="searchbox" hidden><input id="search-input" class="search" type="text" placeholder="搜索…"></span>
           <button class="btn primary" id="act-todo" onclick="openReminderForm()" style="display:none">+ 添加</button>
           <span id="act-exp" class="chips" style="display:none">
-            <button class="chip mono" id="asset-total" title="点击校准余额" onclick="openAssetForm('asset')">余额 –</button>
-            <button class="chip mono" id="liability-total" title="点击校准负债" onclick="openAssetForm('liability')">负债 –</button>
             <button class="btn primary" onclick="openExpenseForm()">+ 记账</button>
           </span>
           <span id="act-mon" class="chip mono" style="display:none"><span id="server-summary">—</span></span>
           <button class="btn primary" id="act-bm" onclick="openBookmarkForm()" style="display:none">+ 添加</button>
         </div>
-        <button class="icon-btn" id="menu-btn" title="菜单" aria-haspopup="true" onclick="toggleMenu()">☰</button>
+        <button class="icon-btn menu-trigger" id="menu-btn" title="菜单" aria-haspopup="true" onclick="toggleMenu()">☰</button>
         <div class="menu" id="menu">
           <nav class="nav" id="nav">
             <button class="nav-item" data-view="主页"><i>⌂</i><span>主页</span></button>
+            <button class="nav-item" data-view="仪表"><i>▦</i><span>仪表</span></button>
             <button class="nav-item" data-view="待办"><i>✓</i><span>待办</span></button>
             <button class="nav-item" data-view="记账"><i>¥</i><span>记账</span></button>
             <button class="nav-item" data-view="监控"><i>●</i><span>监控</span></button>
@@ -51,36 +54,55 @@
         </div>
       </header>
 
-      <!-- ═══ 主页状态磁贴（卡内头部区，仅主页显示） ═══ -->
-      <div class="stats" id="home-stats">
-        <div class="stat" onclick="goView('待办')"><span>待办未完成</span><b class="c-warn" id="d-reminders">–</b></div>
-        <div class="stat" onclick="goView('记账')"><span>当前余额</span><b class="c-ok mono" id="d-balance">–</b></div>
-        <div class="stat" onclick="goView('监控')"><span>监控状态</span><b class="c-cyan" id="d-monitor">–</b></div>
-        <div class="stat" onclick="goView('书签')"><span>书签总数</span><b class="c-blue" id="d-bookmarks">–</b></div>
-      </div>
-
-      <!-- ═══ 视图内容：五个视图叠放，硬切显隐 ═══ -->
+      <!-- ═══ 视图内容：六个视图叠放，硬切显隐 ═══ -->
       <div class="views">
 
         <section id="view-home" class="view active">
+          <!-- 段头固定在书签滚动区上方（不随书签滚动） -->
+          <div class="home-head">
+            <div class="sec-head">
+              <span><b class="c-blue">★</b> 书签</span>
+              <span class="sec-acts">
+                <button class="chip" id="act-dash" title="仪表盘" onclick="goView('仪表')">▦ 仪表<span class="badge" id="dash-badge" hidden></span></button>
+              </span>
+            </div>
+          </div>
           <div class="home-scroll custom-scroll">
-            <!-- 最近书签：最近 8 个，管理去书签版块 -->
-            <section class="home-sec">
-              <div class="sec-head">
-                <span><b class="c-blue">★</b> 最近书签</span>
-                <span class="sec-acts">
-                  <button class="link" onclick="openBookmarkForm()">＋ 添加</button>
-                  <button class="link" onclick="goView('书签')">全部 ›</button>
-                </span>
-              </div>
-              <div class="sec-body" id="home-bookmarks"><div class="row"><span class="muted">加载中…</span></div></div>
-            </section>
+            <!-- 书签：主页唯一内容 -->
+            <div class="sec-body" id="home-bookmarks"><div class="empty"><i>★</i>加载中…</div></div>
+          </div>
+        </section>
+
+        <!-- ═══ 仪表：各版块简略消息，点击卡片进对应版块 ═══ -->
+        <section id="view-dash" class="view">
+          <div class="dash-scroll custom-scroll">
+            <div class="dash-grid">
+              <button class="dash-card" onclick="goView('待办')">
+                <span class="dash-h"><i class="c-warn">✓</i>待办</span>
+                <b class="dash-v" id="dash-todo">–</b>
+                <small class="dash-s" id="dash-todo-sub"></small>
+              </button>
+              <button class="dash-card" onclick="goView('记账')">
+                <span class="dash-h"><i class="c-ok">¥</i>记账</span>
+                <b class="dash-v" id="dash-money">–</b>
+                <small class="dash-s" id="dash-money-sub"></small>
+              </button>
+              <button class="dash-card" onclick="goView('监控')">
+                <span class="dash-h"><i class="c-cyan">●</i>监控</span>
+                <b class="dash-v" id="dash-mon">–</b>
+                <small class="dash-s" id="dash-mon-sub"></small>
+              </button>
+              <button class="dash-card" onclick="goView('书签')">
+                <span class="dash-h"><i class="c-blue">★</i>书签</span>
+                <b class="dash-v" id="dash-bm">–</b>
+                <small class="dash-s" id="dash-bm-sub"></small>
+              </button>
+            </div>
           </div>
         </section>
 
         <section id="view-reminders" class="view">
           <div class="panel">
-            <div class="panel-head"><input id="q-reminders" class="search" type="text" placeholder="搜索标题或内容…"></div>
             <div class="panel-scroll custom-scroll" id="list-reminders">
               <div class="empty"><i>✓</i>加载中…</div>
             </div>
@@ -89,7 +111,6 @@
 
         <section id="view-expenses" class="view">
           <div class="panel">
-            <div class="panel-head"><input id="q-expenses" class="search" type="text" placeholder="搜索账单或分类…"></div>
             <div class="panel-scroll custom-scroll" id="list-expenses">
               <div class="empty"><i>¥</i>加载中…</div>
             </div>
@@ -98,7 +119,6 @@
 
         <section id="view-monitor" class="view">
           <div class="panel mono">
-            <div class="panel-head"><input id="q-servers" class="search" type="text" placeholder="搜索服务或内容…"></div>
             <div class="panel-scroll custom-scroll" id="list-servers">
               <div class="empty"><i>●</i>加载中…</div>
             </div>
@@ -107,7 +127,6 @@
 
         <section id="view-bookmarks" class="view">
           <div class="panel">
-            <div class="panel-head"><input id="q-bookmarks" class="search" type="text" placeholder="搜索标题 / 网址 / 标签…"></div>
             <div class="panel-scroll custom-scroll" id="list-bookmarks">
               <div class="empty"><i>★</i>加载中…</div>
             </div>
@@ -137,13 +156,19 @@
                     <div class="ifield"><span>到期日</span><button type="button" class="idate" id="fr-due" data-value="" data-ph="选择到期日"><span class="idate-txt">选择到期日</span></button></div>
                     <div class="ifield"><span>提醒日</span><button type="button" class="idate" id="fr-remind" data-value="" data-ph="选择提醒日"><span class="idate-txt">选择提醒日</span></button></div>
                   </div>
-          <label class="ifield"><span>循环</span><select id="fr-cycle">
-            <option value="once">一次性</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
-            <option value="yearly">每年</option>
-          </select></label>
+          <div class="ifield"><span>循环</span>
+            <div class="isel" id="fr-cycle-sel">
+              <button type="button" class="isel-btn" aria-haspopup="listbox" onclick="toggleISelect('fr-cycle-sel')"><span class="isel-txt">一次性</span></button>
+              <div class="isel-menu" hidden role="listbox">
+                <button type="button" class="isel-opt" data-value="once">一次性</button>
+                <button type="button" class="isel-opt" data-value="daily">每天</button>
+                <button type="button" class="isel-opt" data-value="weekly">每周</button>
+                <button type="button" class="isel-opt" data-value="monthly">每月</button>
+                <button type="button" class="isel-opt" data-value="yearly">每年</button>
+              </div>
+            </div>
+            <input type="hidden" id="fr-cycle" value="once">
+          </div>
         </div>
         <div class="iform-acts">
           <button class="btn" id="fr-cancel">取消</button>
@@ -162,12 +187,18 @@
         </div>
         <input type="hidden" id="fe-id">
         <div class="irow">
-          <label class="ifield"><span>类型</span><select id="fe-type">
-            <option value="expense">支出</option>
-            <option value="income">收入</option>
-            <option value="debt_in">借入</option>
-            <option value="debt_out">还款</option>
-          </select></label>
+          <div class="ifield"><span>类型</span>
+            <div class="isel" id="fe-type-sel">
+              <button type="button" class="isel-btn" aria-haspopup="listbox" onclick="toggleISelect('fe-type-sel')"><span class="isel-txt">支出</span></button>
+              <div class="isel-menu" hidden role="listbox">
+                <button type="button" class="isel-opt" data-value="expense">支出</button>
+                <button type="button" class="isel-opt" data-value="income">收入</button>
+                <button type="button" class="isel-opt" data-value="debt_in">借入</button>
+                <button type="button" class="isel-opt" data-value="debt_out">还款</button>
+              </div>
+            </div>
+            <input type="hidden" id="fe-type" value="expense">
+          </div>
           <label class="ifield"><span>金额 (元)</span><input id="fe-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
         </div>
         <label class="ifield" id="fe-interest-wrap" hidden><span>利息 (还款时)</span><input id="fe-interest" type="number" min="0" step="0.01" inputmode="decimal" placeholder="选填"></label>

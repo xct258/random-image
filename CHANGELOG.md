@@ -16,6 +16,31 @@
 - **变更记录标注**：有对应备份时标注 `（备份：random-image-backup-NNN.tar.gz）`，无备份的变更只记内容
 - **保留**：全部备份一律保留、不删除；如需清理或重置，由用户明确指示后统一执行
 
+## [2026-09-30]
+
+### 变更
+
+- 添加 5 条示例书签（用户指示）：`GitHub` / `Bilibili` / `豆包` / `MDN` / `Docker Hub`（经 `POST /bookmarks` 写入，原库为空）。
+
+- 清空全部业务数据（用户指示）：清空 `后端/data/` 四个库的全部表（`todo` / `bookmark` / `serverstatus` / `ledger_items` + `asset` / `liability`），保留表结构与运行中的 uvicorn 服务；清空前已备份 data/ 到 `/tmp/random-image-data-backup-001.tar.gz`。
+- 弹窗/遮罩用壁纸主题色（用户指示）：以 `--accent`（壁纸 `X-Theme-Color-Hex`）经 `color-mix` 派生——遮罩 `.iform-wrap` 暗幕染主题色 16%，弹窗 `.iform` 底色 12% + 描边/顶高光/外发光按主题色，输入聚焦边框、`.idate.open`、日期面板 `.ipicker`（底/边）、`.ip-day.today/.sel` 全部改用 `--accent`；深色底与不支持 `color-mix` 时的回退值保留（可读性不受影响）。
+- 统一标题栏样式（用户反馈，以主页为准）：`.apptop` 与 `.home-head` 统一为 `padding:14px 14px 12px` + 浅底 `rgba(0,0,0,.12)` + 底部分隔线 + `text-shadow`；`.apptop` 去掉原 `min-height:50px` / `padding:9px 14px`；窄屏两者同步 `10px 10px 9px`。再给两者统一 `min-height:58px`（窄屏 53px）——此前主页头最高是 28px 的「▦ 仪表」chip、其它版块是 32px 的 ☰，导致主页↔仪表切换时标题栏高度差约 4px。
+- 去掉顶栏余额/负债键（用户指示）：删除记账动作区的 `#asset-total` / `#liability-total` 两个校准键；`paintTotals` 仅保留取数供仪表「记账」卡（`MONEY`），校准表单 `#iform-asset` 与 `openAssetForm` 暂留但无入口。
+- 搜索键移到卡片顶栏（用户指示）：四个版块的搜索框/按钮合并为顶栏一个搜索控件（`#act-search` 🔍 + `#search-input`），放在动作按钮之前（顶栏右簇内），按当前版块过滤（`SEARCH_VIEW`），切版块自动收起并清空过滤；移除各列表的 `.panel-head`。
+- 移动端布局优化（用户指示）：窄屏展开的搜索框改为浮在顶栏下方（`position:absolute` 满宽、不占流），不挤动动作区与菜单；图标键触控尺寸 32→34px；新增 `≤480px` 断点（表单 `.irow` 改单列、仪表两列、内边距收紧）。
+- 停用右上角 Toast（用户指示）：`js/notify.js` 去掉 DOM/样式实现，`Toast` API 改为空实现（不影响各调用处）；操作反馈改由顶部「加载中…」全局指示与表单标红承担，失败不再弹右上角提示。
+- 全局请求加载反馈（用户指示）：只对**写操作**（POST/PUT/DELETE：添加/编辑/删除/完成等）显示——`api()` 出口维护在飞计数（`netStart/netEnd`），写请求在飞时右上角淡入「加载中…」胶囊（延迟 180ms、避免快请求闪烁），结束淡出；GET 列表加载、首屏、壁纸加载都不显示该指示。待办完成/重开另有按钮内 spinner。
+- 待办分组 + 未到提醒收起（用户指示）：`paintReminders` 按「无提醒 / 已到提醒 / 未到提醒」分组（`.tgroup` 标题）；无提醒待办直接显示、已到提醒的前台显示，未到提醒默认收起为「未到提醒 · N 项」展开键（`toggleFutureReminders`，搜索时自动展开）；未到提醒组的完成键仍置灰（复用 `todoLocked`），到提醒日才可完成。
+- 前端交互卡顿优化（用户反馈）：去掉全屏 `body::after` 的 `backdrop-filter: saturate(112%)`（连同 1.2s 透明度过渡与 `glass-on`），改为在 `#anime-bg` 上直接 `filter: saturate(112%)`——避免每次交互（开菜单/弹窗/切视图）都重采样整屏；`api()` 的 GET 不再带 `Content-Type`，跨域少一次 `OPTIONS` 预检，列表加载更快。
+- 待办完成交互优化（用户指示）：完成键统一为「完成」（去掉「打卡」叫法）；未到提醒日时置灰禁用（`todoLocked`：`today < remind_time`），到提醒日才可点；完成后循环任务由后端自动顺延到下一次循环，`doneReminder` 用返回的 `due_time` 提示新日期。
+- 主页「仪表」键提醒（用户指示）：有未完成待办或服务异常时，`#act-dash` 加 `.alert`（玫红描边/底色）+ 数量角标 `.badge`（总数，超 99 显示 `99+`），无则恢复普通键样式；由 `paintDash` 统一更新。
+- 弹窗下拉框重写（用户指示）：记账「类型」、待办「循环」弃用原生 `<select>`，改自定义下拉（`.isel`：按钮 + `position:fixed` 浮层选项，`toggleISelect/setISelect/syncISelect`，点外部/Esc 先收下拉，放不下自动上翻）；保留 `#fe-type` / `#fr-cycle` 隐藏 input 的 `.value` 与 `change` 事件，原表单逻辑不变；浮层用主题色底/边、选中项高亮、箭头开合旋转。
+- 列表搜索框收成图标键（用户指示）：待办/记账/监控/书签四列表搜索框默认隐藏，`.panel-head` 右侧 🔍 键展开/收起（`toggleSearch`，收起清空过滤并重画）；书签版块标题栏不再显示「N 个书签」摘要。
+- 主页无书签空状态对齐其它列表（用户指示）：`paintHome` 空态由 `.row` 改 `.empty`（居中图标+文字），`.home-scroll` 改 flex 纵向、`#home-bookmarks` 撑满，空态垂直居中；初始「加载中」同步用 `.empty`。
+- 主页改版 + 新增「仪表」版块（用户指示）：主页只显示书签（全量按分类分组），段头左侧「★ 书签」、右侧「▦ 仪表」跳转键（主页不放菜单 ☰）；新增「仪表」（`#view-dash`）用卡片汇总各版块简略消息（待办未完成/逾期、记账余额/负债、监控正常/异常、书签数），点卡片进对应版块。主页不设顶栏（`body.home .apptop` 隐藏，菜单 ☰ 随顶栏只在其他视图出现）。`paintHome` 只画书签、新增 `paintDash`（由各 `paint*` 调用）、`paintTotals` 缓存余额/负债（`MONEY`）供仪表用，移除此前主页提醒条样式与 `paintBalance`。书签段头（`.home-head`：★ 书签 + 仪表 + ☰）移出滚动区、固定在页面顶部，带下边线与浅底色区分。
+- 前端去掉高斯模糊：删除 `.stage` 的 `backdrop-filter: blur(18px)`，`--glass` 不透明度 .5→.85→.62（遮罩太暗后调亮），承载层改高不透明深色底（菜单/弹窗沿用实色，全屏调色层的 `saturate` 保留）；省性能，可读性靠不透明度保证。
+- 表单与内容遮罩加深：`.iform-wrap` 遮罩 .55→.72；列表行/书签卡/状态磁贴改用深色底 `--card: rgba(0,0,0,.3)`（按钮等交互元素仍用 `--fill`，hover 高亮不变）。
+
 ## [2026-09-23]
 
 ### 重写
