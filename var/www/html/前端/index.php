@@ -141,8 +141,8 @@
   <!-- ═══ 表单弹窗（挂 body：fixed 定位不受舞台玻璃包含块限制，覆盖整页） ═══ -->
   <!-- 待办表单弹窗：新建/编辑共用 -->
   <div class="iform-wrap" id="iform-reminders" hidden>
-    <div class="iform-box iform-scroll">
-      <div class="iform">
+    <div class="iform-box">
+      <div class="iform iform-scroll">
         <div class="iform-head">
           <span class="iform-title" id="fr-heading">新建待办</span>
           <button class="icon-btn sm" id="fr-close" title="关闭">✕</button>
@@ -197,8 +197,8 @@
   </div>
   <!-- 记账表单弹窗：新建/编辑共用（利息仅还款时出现） -->
   <div class="iform-wrap" id="iform-expenses" hidden>
-    <div class="iform-box iform-scroll">
-      <div class="iform">
+    <div class="iform-box">
+      <div class="iform iform-scroll">
         <div class="iform-head">
           <span class="iform-title" id="fe-heading">新建记账</span>
           <button class="icon-btn sm" id="fe-close" title="关闭">✕</button>
@@ -234,8 +234,8 @@
   </div>
   <!-- 余额/负债校准弹窗：点顶栏数字展开 -->
   <div class="iform-wrap" id="iform-asset" hidden>
-    <div class="iform-box iform-scroll">
-      <div class="iform">
+    <div class="iform-box">
+      <div class="iform iform-scroll">
         <div class="iform-head">
           <span class="iform-title" id="fa-heading">校准余额</span>
           <button class="icon-btn sm" id="fa-close" title="关闭">✕</button>
@@ -251,8 +251,8 @@
   </div>
   <!-- 书签表单弹窗：新建/编辑共用（链接自动补协议） -->
   <div class="iform-wrap" id="iform-bookmarks" hidden>
-    <div class="iform-box iform-scroll">
-      <div class="iform">
+    <div class="iform-box">
+      <div class="iform iform-scroll">
         <div class="iform-head">
           <span class="iform-title" id="fb-heading">新建书签</span>
           <button class="icon-btn sm" id="fb-close" title="关闭">✕</button>

@@ -115,6 +115,8 @@ function openForm(wrapId, focusId) {
   wrap.hidden = false;
   fitViewport(wrap);
   wrap.scrollTop = 0;
+  var card = wrap.querySelector('.iform'); /* 卡片固定高度、内容内滚：打开回到顶部 */
+  if (card) card.scrollTop = 0;
   resetPageScroll();
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   var f = focusId && $(focusId);
@@ -465,16 +467,17 @@ function reminderRowHtml(r) {
   var btitle = r.processed ? '重新打开（撤销完成）'
     : (locked ? '未到提醒日，' + String(r.remind_time).slice(0, 10) + ' 后可完成' : '完成');
   var pr = Number(r.priority) || 0;
+  var doneBtn = r.processed
+    ? '<button class="link ok" title="重新打开（撤销完成）" onclick="reopenReminder(' + r.id + ', this)">重开</button>'
+    : '<button class="link ok" title="' + btitle + '"' + (locked ? ' disabled' : '') + ' onclick="doneReminder(' + r.id + ', this)">完成</button>';
   var snooze = (!r.processed && r.need_remind)
     ? '<button class="link" title="推迟' + (r.recurring ? '一个周期' : '一天') + '" onclick="snoozeReminder(' + r.id + ', this)">推迟</button>'
     : '';
   return '<div class="row' + (r.processed ? ' done' : '') + (locked ? ' locked' : '') + '">' +
     (pr ? '<span class="pdot p' + pr + '" title="' + (P_TXT[pr] || '') + '优先级"></span>' : '') +
-    '<button class="done-btn' + (r.processed ? ' done' : '') + '" title="' + btitle + '"' +
-      (locked ? ' disabled' : '') +
-      ' onclick="' + (r.processed ? 'reopenReminder' : 'doneReminder') + '(' + r.id + ', this)">✓</button>' +
     '<span class="grow">' + esc(r.title || r.content) + '<small class="sub">' + sub + '</small></span>' +
     ((r.id === _undoId) ? '<button class="link ok" onclick="undoReminder(' + r.id + ', this)">撤销</button>' : '') +
+    doneBtn +
     snooze +
     '<button class="link blue" onclick="openEditReminderForm(' + r.id + ')">编辑</button>' +
     '<button class="link bad" onclick="delReminder(this,' + r.id + ')">删除</button>' +
