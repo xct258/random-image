@@ -9,7 +9,7 @@
 ```text
 .
 ├── app/
-│   └── index.php            # 随机壁纸接口（全部业务逻辑，构建时 COPY 进镜像 /app）
+│   └── index.php            # 随机壁纸接口（构建时由 custom-install.sh 下载到镜像 /app）
 ├── install/
 │   ├── app.conf             # 镜像名/架构/apt 依赖（php-cli、imagemagick）
 │   ├── install.sh           # 构建期依赖安装（模板固定）
@@ -20,7 +20,7 @@
 │   ├── update.sh            # 自动更新（空实现，镜像更新靠重新拉取）
 │   ├── services.sh          # 项目服务：php -S 托管 /app
 │   └── main.sh              # 固定薄壳（模板）
-├── template/                # 模板固定文件（Dockerfile 额外 COPY app/）
+├── template/                # 模板固定文件（不修改，构建时从仓库下载）
 ├── check.sh                 # 本地自查（push 前跑，CI 也用）
 ├── docker-compose.yml       # 部署配置（host 网络，端口 8181）
 ├── random-image-api-headers.md
@@ -75,6 +75,7 @@ GET /?exclude=pc-image-10     避开指定编号（跨域 Cookie 不可用时使
 只通过 GitHub Actions 构建：push 后到 Actions 页面手动触发 **Build and Push Docker Image**。
 
 - 配置来源：`install/app.conf`（`IMAGE_REPO=xct258/random-image`、`IMAGE_TAG=latest`）
+- 业务代码：`install/custom-install.sh` 用 CI 传入的 `REPO_URL`（固定到提交 SHA）下载 `app/index.php` 到 `/app`；`template/Dockerfile` 保持模板原样，不新增 `COPY` 层
 - 需要 Secrets：`DOCKERACC` / `DOCKERPWD`
 - 产物：`xct258/random-image:latest`（amd64 + arm64）
 

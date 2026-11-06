@@ -59,8 +59,5 @@ RUN set -eux; \
     fetch "${REPO_URL}/template/start.sh" /opt/start.sh; \
     chmod +x /opt/start.sh
 
-# 业务代码：随机壁纸接口（单文件 PHP）
-COPY app/ /app/
-
 # 工作目录不在这里固定，默认是 /；需要固定时用 compose 的 working_dir 指定
 ENTRYPOINT ["/opt/start.sh"]

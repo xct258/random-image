@@ -11,7 +11,8 @@
 ### 新增
 
 - 按 [xct258/docker-image-template](https://github.com/xct258/docker-image-template) 重组项目（用户指示）：引入 `install/`（`app.conf` / `install.sh`）、`startup/`（`prepare.sh` / `once.sh` / `update.sh` / `services.sh` / `main.sh`）、`template/`（`Dockerfile` / `start.sh` / `supervisor.sh`）、`check.sh`、`.github/workflows/build-image.yml`。
-- 镜像构建：`IMAGE_REPO=xct258/random-image`、`latest`、`linux/amd64,linux/arm64`；apt 依赖新增 `php-cli`、`imagemagick`，业务代码通过 `COPY app/ /app/` 进镜像。
+- 镜像构建：`IMAGE_REPO=xct258/random-image`、`latest`、`linux/amd64,linux/arm64`；apt 依赖新增 `php-cli`、`imagemagick`。
+- 业务代码不修改固定模板 Dockerfile、不使用 `COPY`（避免新增镜像层）：`INSTALL_CUSTOM=true`，由 `install/custom-install.sh` 在构建时用 `REPO_URL` 下载 `app/index.php` 到 `/app`，并执行 `php -l` 语法检查。
 - 运行方式：`startup/services.sh` 用 `php -S 0.0.0.0:${PORT}` 托管 `/app`，端口 8181，`PHP_CLI_SERVER_WORKERS=4`。
 
 ### 变更
