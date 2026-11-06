@@ -8,7 +8,26 @@
 
 ## [2026-11-07]
 
+### 新增
+
+- 按 [xct258/docker-image-template](https://github.com/xct258/docker-image-template) 重组项目（用户指示）：引入 `install/`（`app.conf` / `install.sh`）、`startup/`（`prepare.sh` / `once.sh` / `update.sh` / `services.sh` / `main.sh`）、`template/`（`Dockerfile` / `start.sh` / `supervisor.sh`）、`check.sh`、`.github/workflows/build-image.yml`。
+- 镜像构建：`IMAGE_REPO=xct258/random-image`、`latest`、`linux/amd64,linux/arm64`；apt 依赖新增 `php-cli`、`imagemagick`，业务代码通过 `COPY app/ /app/` 进镜像。
+- 运行方式：`startup/services.sh` 用 `php -S 0.0.0.0:${PORT}` 托管 `/app`，端口 8181，`PHP_CLI_SERVER_WORKERS=4`。
+
+### 变更
+
+- 随机壁纸接口从 `var/www/html/index.php` 移到 `app/index.php`，逻辑不变。
+- 缓存目录支持 `IMAGE_CACHE_DIR`（容器里指向 `/data/cache`，随数据卷保留），图库路径支持 `IMAGE_DIR_PC` / `IMAGE_DIR_PE` 环境变量覆盖。
+- `docker-compose.yml` 改为模板风格：改用预构建镜像 `xct258/random-image:latest`、host 网络直占 8181、`./data:/data` 持久化日志与缓存，图库挂载改为只读。
+- 根目录 `README.md` 按模板结构重写；`random-image-api-headers.md` 更新代码路径与缓存位置。
+- `.gitignore` 改为忽略 `data/` 与本地缓存；新增 `.dockerignore`。
+
 ### 删除
+
+- 删除 `var/www/html/` 目录（`index.php` 已移到 `app/`，README 已移到根目录，旧缓存删除）。
+- 删除旧的 `php:apache` + 端口映射部署方式。
+
+### 删除（项目精简）
 
 - 项目精简为「仅随机壁纸接口」（用户指示，其它内容均为废案）：
   - 删除登录接口 `auth-api.php` 及其服务端状态文件（`.auth_users.json` / `.auth_tokens.json` / `.auth_rate_limit.json`）。
@@ -16,8 +35,3 @@
   - 删除控制台前端 `var/www/html/前端/`（主页/仪表/待办/笔记/记账/监控/书签/思维导图）。
   - 删除旧导航工作台测试页 `1.html` / `1-test.html`。
   - 删除仪表盘设计规范 `code_artifact.md`。
-  - 保留 `var/www/html/index.php`（随机壁纸接口）、`docker-compose.yml`、壁纸相关缓存与 `random-image-api-headers.md`；`README.md` 按现状重写。
-
-### 变更
-
-- `.gitignore` 移除已不存在的 Python / 鉴权状态条目，只保留壁纸接口缓存与杂项。

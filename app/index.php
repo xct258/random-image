@@ -1,9 +1,16 @@
 <?php
 declare(strict_types=1);
 
-const CACHE_FILE = __DIR__ . '/.color_cache.json';
-const IMAGE_LIST_CACHE_FILE = __DIR__ . '/.image_list_cache.json';
-const IMAGE_ID_MAP_FILE = __DIR__ . '/.image_id_map.json';
+// 缓存目录：优先用 IMAGE_CACHE_DIR（容器里指向 /data/cache，随数据卷保留），否则放在代码同级
+$cacheDir = getenv('IMAGE_CACHE_DIR');
+if (!is_string($cacheDir) || $cacheDir === '') {
+    $cacheDir = __DIR__;
+}
+$cacheDir = rtrim($cacheDir, '/');
+define('CACHE_FILE', $cacheDir . '/.color_cache.json');
+define('IMAGE_LIST_CACHE_FILE', $cacheDir . '/.image_list_cache.json');
+define('IMAGE_ID_MAP_FILE', $cacheDir . '/.image_id_map.json');
+
 const LAST_IMAGE_COOKIE_PREFIX = 'last_image_path_';
 const LAST_IMAGE_COOKIE_TTL = 86400 * 30;
 const DEFAULT_TEXT_TARGET_CONTRAST = 4.5;
@@ -11,11 +18,11 @@ const DEFAULT_TEXT_TARGET_CONTRAST = 4.5;
 $config = [
     'folders' => [
         'mobile' => [
-            'path' => '/home/xct258/images/pe/',
+            'path' => getenv('IMAGE_DIR_PE') ?: '/home/xct258/images/pe/',
             'id_prefix' => 'pe-image',
         ],
         'desktop' => [
-            'path' => '/home/xct258/images/pc/',
+            'path' => getenv('IMAGE_DIR_PC') ?: '/home/xct258/images/pc/',
             'id_prefix' => 'pc-image',
         ],
     ],

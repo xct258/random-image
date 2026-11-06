@@ -1,12 +1,12 @@
 # 随机图片 API 响应头中的图片信息
 
-接口：`GET http://主机:8181/`（`var/www/html/index.php:47-57`，`serveRandomImage()`）
+接口：`GET http://主机:8181/`（`app/index.php` 的 `serveRandomImage()`）
 
 ## 图片信息头（6 个）
 
 | 响应头 | 示例 | 说明 |
 | --- | --- | --- |
-| `X-Image-Id` | `pc-image-10` | 图片稳定编号，前缀 `pc-image-N` / `pe-image-N`，映射存 `.image_id_map.json`；下次请求带 `?exclude=<id>` 可避开上一张 |
+| `X-Image-Id` | `pc-image-10` | 图片稳定编号，前缀 `pc-image-N` / `pe-image-N`，映射存 `/data/cache/.image_id_map.json`；下次请求带 `?exclude=<id>` 可避开上一张 |
 | `X-Theme-Color` | `rgb(209, 203, 212)` | 图片主题色（RGB 写法，ImageMagick 取主色） |
 | `X-Theme-Color-Hex` | `#d1cbd4` | 同上，Hex 写法（前端 `--accent` 联动用这个） |
 | `X-Text-Color` | `rgb(66, 58, 70)` | 按背景算出的可读文字色（RGB 写法，保证对比度） |

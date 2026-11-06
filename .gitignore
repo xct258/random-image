@@ -1,7 +1,5 @@
-# 壁纸接口缓存（删掉自动重建）
-.color_cache.json
-.image_list_cache.json
-.image_id_map.json
-
-# 杂项
+data/
+app/.color_cache.json
+app/.image_list_cache.json
+app/.image_id_map.json
 nohup.out

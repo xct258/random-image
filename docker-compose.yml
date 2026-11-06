@@ -1,12 +1,30 @@
 services:
-  random-image:
-    image: php:apache
+  app:
+    image: xct258/random-image:latest
     container_name: random-image
-    restart: always
-    ports:
-      - "8181:80"
-    user: 3000:3000   # 使用 xct258 的 UID:GID
+    # 默认 host 网络：直接用宿主机 8181 端口，不需要 ports 映射
+    network_mode: host
+    restart: unless-stopped
+    # 多进程容器用 tini 回收孤儿进程
+    init: true
+    stop_grace_period: 15s
+    environment:
+      TZ: Asia/Shanghai
+      # 随机壁纸接口监听端口（host 网络下直接占用宿主机端口）
+      PORT: 8181
+      SERVICE_PORT: 8181
+      # 缓存目录：指向 /data（随数据卷保留，重建容器不丢）
+      IMAGE_CACHE_DIR: /data/cache
+      # 图库目录（与下面 volumes 的容器内路径一致）
+      IMAGE_DIR_PC: /home/xct258/images/pc
+      IMAGE_DIR_PE: /home/xct258/images/pe
+      # PHP 内置服务器工作进程数（并发取图）
+      PHP_CLI_SERVER_WORKERS: 4
+      # 没有容器内自更新逻辑，更新方式为拉取新镜像
+      UPDATE_ON_START: 0
+      LOG_BASE_DIR: /data/logs
     volumes:
-      - ./var/www/html:/var/www/html
-      - /mnt/ssd-1/xct258/图片/网页背景图/pc:/home/xct258/images/pc
-      - /mnt/ssd-1/xct258/图片/网页背景图/pe:/home/xct258/images/pe
+      - ./data:/data
+      # 宿主机图库 → 容器内路径（只读）
+      - /mnt/ssd-1/xct258/图片/网页背景图/pc:/home/xct258/images/pc:ro
+      - /mnt/ssd-1/xct258/图片/网页背景图/pe:/home/xct258/images/pe:ro
